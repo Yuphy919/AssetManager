@@ -1,0 +1,7 @@
+# Rust build artifacts and toolchain binaries
+/target/
+/Cargo.lock
+**/*.rlib
+**/*.dll
+**/*.exe
+%LOCALAPPDATA%/
