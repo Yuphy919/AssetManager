@@ -2,58 +2,203 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>円グラフ</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>資産管理システム</title>
+    <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <h1>Rust + Chart.js 円グラフ</h1>
-    <table border="1" id="assetTable">
-        <thead>
-            <tr>
-                <th>資産区分</th><th>金額</th><th>割合(%)</th><th>目標金額</th><th>目標割合(%)</th>
-            </tr>
-        </thead>
-        <tbody>
-            <!-- データ行がここに入る -->
-        </tbody>
-    </table>
+    <header class="header">
+        <div class="container">
+            <h1 class="header__title">資産管理システム</h1>
+            <p class="header__subtitle">ポートフォリオ分析ダッシュボード</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="section">
+            <h2 class="section__title">資産配分テーブル</h2>
+            <div class="card">
+                <div class="card__body">
+                    <table class="table" id="assetTable">
+                        <thead class="table__header">
+                            <tr>
+                                <th>資産区分</th>
+                                <th class="text-right">金額</th>
+                                <th class="text-right">割合</th>
+                                <th class="text-right">目標金額</th>
+                                <th class="text-right">目標割合</th>
+                            </tr>
+                        </thead>
+                        <tbody class="table__body">
+                            <!-- データ行がここに入る -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <div class="grid grid--2col">
+            <section class="section">
+                <h2 class="section__title">資産配分グラフ</h2>
+                <div class="card">
+                    <div class="card__body">
+                        <div class="chart-container">
+                            <canvas id="myChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <h2 class="section__title">ファイルアップロード</h2>
+                <div class="card">
+                    <div class="card__body">
+                        <div id="drop-area" class="drop-area">
+                            <p class="drop-area__text">CSVファイルをここにドロップ</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
     <script>
+        let myChart = null; // グラフインスタンスを保持
+
         async function fetchFlights() {
             const res = await fetch('/api/view_assets');
             const assets = await res.json();
 
-            const tbody = document.querySelector('#assetTable tbody');
+            // テーブルの更新
+            const tbody = document.querySelector('#assetTable .table__body');
             tbody.innerHTML = ''; // クリア
 
-            assets.forEach(asset => {
-              const tr = document.createElement('tr');
+            // グラフ用のデータを準備
+            const chartLabels = [];
+            const chartData = [];
+            const chartColors = [
+                '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+                '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6366f1'
+            ];
 
-              const td1 = document.createElement('td');
-              td1.textContent = asset.asset_name;
+            assets.forEach((asset, index) => {
+                const tr = document.createElement('tr');
 
-              const td2 = document.createElement('td');
-              td2.textContent = asset.amount;
-              td2.style.textAlign = "right"; // 中央揃え
+                const td1 = document.createElement('td');
+                td1.textContent = asset.asset_name;
 
-              const td3 = document.createElement('td');
-              td3.textContent = asset.ratio;
-              td3.style.textAlign = "right"; // 中央揃え
+                const td2 = document.createElement('td');
+                td2.textContent = asset.amount;
+                td2.className = 'text-right';
 
-              const td4 = document.createElement('td');
-              td4.textContent = asset.target_amount;
-              td4.style.textAlign = "right"; // 中央揃え
+                const td3 = document.createElement('td');
+                td3.textContent = asset.ratio;
+                td3.className = 'text-right';
 
-              const td5 = document.createElement('td');
-              td5.textContent = asset.target_ratio;
-              td5.style.textAlign = "right"; // 中央揃え
+                const td4 = document.createElement('td');
+                td4.textContent = asset.target_amount;
+                td4.className = 'text-right';
 
-              tr.appendChild(td1);
-              tr.appendChild(td2);
-              tr.appendChild(td3);
-              tr.appendChild(td4);
-              tr.appendChild(td5);
+                const td5 = document.createElement('td');
+                td5.textContent = asset.target_ratio;
+                td5.className = 'text-right';
 
-              tbody.appendChild(tr);
+                tr.appendChild(td1);
+                tr.appendChild(td2);
+                tr.appendChild(td3);
+                tr.appendChild(td4);
+                tr.appendChild(td5);
+
+                tbody.appendChild(tr);
+
+                // 合計行以外をグラフに追加
+                if (asset.asset_name !== '合計金額') {
+                    chartLabels.push(asset.asset_name);
+                    // パーセンテージ記号を除去して数値に変換
+                    const ratioValue = parseFloat(asset.ratio.replace('%', ''));
+                    chartData.push(ratioValue);
+                }
+            });
+
+            // グラフの更新
+            updateChart(chartLabels, chartData, chartColors);
+        }
+
+        function updateChart(labels, data, colors) {
+            const ctx = document.getElementById('myChart').getContext('2d');
+            
+            // 既存のグラフがあれば破棄
+            if (myChart) {
+                myChart.destroy();
+            }
+
+            // データが空の場合のハンドリング
+            if (labels.length === 0 || data.length === 0) {
+                // 空のデータ用のプレースホルダーグラフ
+                myChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['データなし'],
+                        datasets: [{
+                            label: '資産配分',
+                            data: [100],
+                            backgroundColor: ['#e5e7eb'],
+                            borderWidth: 2,
+                            borderColor: '#ffffff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                enabled: false
+                            }
+                        }
+                    }
+                });
+                return;
+            }
+
+            // 新しいグラフを作成
+            myChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '資産配分',
+                        data: data,
+                        backgroundColor: colors.slice(0, labels.length),
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.label + ': ' + context.parsed + '%';
+                                }
+                            }
+                        }
+                    }
+                }
             });
         }
 
@@ -61,45 +206,25 @@
         window.onload = fetchFlights;
     </script>
 
-    <canvas id="myChart" width="400" height="400"></canvas>
-    <script type="module">
-        import init from './pkg/your_wasm_project.js';
-        init().then(() => {
-            const ctx = document.getElementById('myChart').getContext('2d');
-            new Chart(ctx, {
-                type: 'pie',
-                data: {
-                    labels: ['A', 'B', 'C'],
-                    datasets: [{
-                        label: 'データセット',
-                        data: [10, 20, 30],
-                        backgroundColor: ['red', 'blue', 'green']
-                    }]
-                }
-            });
-        });
-    </script>
-    <div id="drop-area" style="border: 1px; border-top: 1px; border-color: black;">ここにファイルをドロップ</div>
     <script>
         const dropArea = document.getElementById("drop-area");
 
         dropArea.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        dropArea.style.backgroundColor = 'green';
+            e.preventDefault();
+            dropArea.classList.add('drop-area--active');
         });
 
         dropArea.addEventListener("dragleave", () => {
-        dropArea.style.backgroundColor = 'white';
+            dropArea.classList.remove('drop-area--active');
         });
 
         dropArea.addEventListener("drop", (e) => {
             e.preventDefault();
-            dropArea.style.borderColor = "#ccc";
+            dropArea.classList.remove('drop-area--active');
 
             const files = e.dataTransfer.files;
             const formData = new FormData();
             formData.append("file", files[0]);
-            dropArea.style.backgroundColor = 'white';
 
             fetch("/upload", {
                 method: "POST",
@@ -113,13 +238,14 @@
             .then(text => {
                 console.log("サーバーからの応答:", text);
                 alert("サーバー応答: " + text);
+                // アップロード後にテーブルとグラフを更新
+                fetchFlights();
             })
             .catch(err => {
                 console.error("エラー:", err);
                 alert("エラー: " + err.message);
             });
         });
-    </script>    
-  
+    </script>
 </body>
 </html>

@@ -38,52 +38,53 @@ async fn view_assets_api() -> Result<impl Responder, actix_web::Error> {
     let mut conn = pool.get_conn().map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;
 
     // クエリ実行してVecに格納
-    let mut rows: Vec<Assets> = Vec::new();
-    let sum_amount_rows:Vec<Row> =conn.query("SELECT SUM(amount) FROM assets").map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;
+    let sum_amount_rows: Vec<Row> = conn.query("SELECT SUM(amount) FROM assets")
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;
     
-    let sum_amount = sum_amount_rows[0].get(0).unwrap_or_default();
+    let sum_amount: f64 = sum_amount_rows.into_iter()
+        .next()
+        .and_then(|row| row.get(0))
+        .unwrap_or_default();
 
     // 資産区分別
-    let assets_categories_rows:Vec<Row> =conn.query("SELECT asset_categories.division, asset_categories.name, target_percentage.ratio As target_ratio FROM asset_categories LEFT JOIN target_percentage ON asset_categories.division = target_percentage.asset_division").map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;
+    let assets_categories_rows: Vec<Row> = conn.query("SELECT asset_categories.division, asset_categories.name, target_percentage.ratio As target_ratio FROM asset_categories LEFT JOIN target_percentage ON asset_categories.division = target_percentage.asset_division")
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;
 
-    // 1行ずつ取り出し
-    for row in assets_categories_rows {
-        let asset_division: i32 = row.get("division").unwrap_or_default();
-        let asset_division_name: String = row.get("name").unwrap_or_default();
-        let query = format!("SELECT SUM(assets.amount) AS amount FROM assets INNER JOIN asset_master ON assets.id = asset_master.id AND asset_master.division = {}", asset_division);
-        let sum_amount_rows:Vec<Row> = conn.query(query).map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;
-        let asset_amount = sum_amount_rows[0].get("amount").unwrap_or_default();
-        let asset_target_ratio:f64 = row.get("target_ratio").unwrap_or_default();
+    // 資産データを関数型で処理
+    let asset_data: Result<Vec<Assets>, actix_web::Error> = assets_categories_rows
+        .into_iter()
+        .map(|row| {
+            let asset_division: i32 = row.get("division").unwrap_or_default();
+            let asset_division_name: String = row.get("name").unwrap_or_default();
+            let query = format!("SELECT SUM(assets.amount) AS amount FROM assets INNER JOIN asset_master ON assets.id = asset_master.id AND asset_master.division = {}", asset_division);
+            let asset_amount_rows: Vec<Row> = conn.query(query)
+                .map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;
+            let asset_amount: f64 = asset_amount_rows.into_iter()
+                .next()
+                .and_then(|row| row.get("amount"))
+                .unwrap_or_default();
+            let asset_target_ratio: f64 = row.get("target_ratio").unwrap_or_default();
 
-        rows.push(Assets {
-            asset_name: asset_division_name.to_string(),
-            amount: format!("{}",round_two_digits(asset_amount)),
-            ratio: ratio(asset_amount,sum_amount).to_string(),
-            target_amount: format!("{}", round_two_digits(sum_amount * asset_target_ratio)),
-            target_ratio: format!("{}%",asset_target_ratio * 100.0),
-        });
-    }
+            Ok(Assets {
+                asset_name: asset_division_name,
+                amount: round_two_digits(asset_amount),
+                ratio: ratio(asset_amount, sum_amount),
+                target_amount: round_two_digits(sum_amount * asset_target_ratio),
+                target_ratio: format!("{}%", asset_target_ratio * 100.0),
+            })
+        })
+        .collect();
 
-    // let data_rows: Vec<Row> = conn.query("SELECT asset_master.name, asset_categories.name As asset_name, assets.amount, asset_master.division FROM assets INNER JOIN asset_master ON assets.id = asset_master.id INNER JOIN asset_categories ON asset_master.division = asset_categories.division ORDER BY asset_master.division ASC").map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;
-    
-    // 1行ずつ取り出し
-    // for row in data_rows {
-    //     rows.push(Assets {
-    //         name: row.get("name").unwrap_or_default(),
-    //         asset_name: row.get("asset_name").unwrap_or_default(),
-    //         amount: row.get("amount").unwrap_or_default(),
-    //     });
-    // }
-
-    let som_amount_name = "合計金額";
-
-    rows.push(Assets {
-            asset_name: som_amount_name.to_string(),
-            amount: format!("{}",sum_amount),
+    let rows: Vec<Assets> = asset_data?
+        .into_iter()
+        .chain(std::iter::once(Assets {
+            asset_name: "合計金額".to_string(),
+            amount: format!("{}", sum_amount),
             ratio: "100%".to_string(),
-            target_amount: format!("{}",sum_amount),
+            target_amount: format!("{}", sum_amount),
             target_ratio: "100%".to_string(),
-    });
+        }))
+        .collect();
     
     Ok(HttpResponse::Ok().json(rows))
 
