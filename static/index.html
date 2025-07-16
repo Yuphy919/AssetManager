@@ -24,10 +24,10 @@
                         <thead class="table__header">
                             <tr>
                                 <th>資産区分</th>
-                                <th class="text-right">金額</th>
-                                <th class="text-right">割合</th>
-                                <th class="text-right">目標金額</th>
-                                <th class="text-right">目標割合</th>
+                                <th class="text-center">金額</th>
+                                <th class="text-center">割合</th>
+                                <th class="text-center">目標金額</th>
+                                <th class="text-center">目標割合</th>
                             </tr>
                         </thead>
                         <tbody class="table__body">
@@ -63,78 +63,102 @@
         </div>
     </main>
     <script>
-        let myChart = null; // グラフインスタンスを保持
+        // グラフインスタンスを保持するグローバル変数
+        let myChart = null;
 
+        /**
+         * サーバーから資産データを取得し、テーブルとグラフを更新する関数
+         */
         async function fetchFlights() {
-            const res = await fetch('/api/view_assets');
-            const assets = await res.json();
+            try {
+                // APIエンドポイントから資産データを取得
+                const res = await fetch('/api/view_assets');
+                const assets = await res.json();
 
-            // テーブルの更新
-            const tbody = document.querySelector('#assetTable .table__body');
-            tbody.innerHTML = ''; // クリア
+                // テーブルの更新
+                const tbody = document.querySelector('#assetTable .table__body');
+                tbody.innerHTML = ''; // 既存のテーブル行をクリア
 
-            // グラフ用のデータを準備
-            const chartLabels = [];
-            const chartData = [];
-            const chartColors = [
-                '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-                '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6366f1'
-            ];
+                // グラフ用のデータ配列を初期化
+                const chartLabels = [];  // 資産名のラベル
+                const chartData = [];    // 割合のデータ
+                const chartColors = [    // グラフの色設定（10色のパレット）
+                    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+                    '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6366f1'
+                ];
 
-            assets.forEach((asset, index) => {
-                const tr = document.createElement('tr');
+                // 取得した資産データを1行ずつ処理
+                assets.forEach((asset, index) => {
+                    // テーブル行の作成
+                    const tr = document.createElement('tr');
 
-                const td1 = document.createElement('td');
-                td1.textContent = asset.asset_name;
+                    // 資産名のセル
+                    const td1 = document.createElement('td');
+                    td1.textContent = asset.asset_name;
 
-                const td2 = document.createElement('td');
-                td2.textContent = asset.amount;
-                td2.className = 'text-right';
+                    // 金額のセル（右寄せ）
+                    const td2 = document.createElement('td');
+                    td2.textContent = asset.amount;
+                    td2.className = 'text-right';
 
-                const td3 = document.createElement('td');
-                td3.textContent = asset.ratio;
-                td3.className = 'text-right';
+                    // 現在割合のセル（右寄せ）
+                    const td3 = document.createElement('td');
+                    td3.textContent = asset.ratio;
+                    td3.className = 'text-right';
 
-                const td4 = document.createElement('td');
-                td4.textContent = asset.target_amount;
-                td4.className = 'text-right';
+                    // 目標金額のセル（右寄せ）
+                    const td4 = document.createElement('td');
+                    td4.textContent = asset.target_amount;
+                    td4.className = 'text-right';
 
-                const td5 = document.createElement('td');
-                td5.textContent = asset.target_ratio;
-                td5.className = 'text-right';
+                    // 目標割合のセル（右寄せ）
+                    const td5 = document.createElement('td');
+                    td5.textContent = asset.target_ratio;
+                    td5.className = 'text-right';
 
-                tr.appendChild(td1);
-                tr.appendChild(td2);
-                tr.appendChild(td3);
-                tr.appendChild(td4);
-                tr.appendChild(td5);
+                    // セルを行に追加
+                    tr.appendChild(td1);
+                    tr.appendChild(td2);
+                    tr.appendChild(td3);
+                    tr.appendChild(td4);
+                    tr.appendChild(td5);
 
-                tbody.appendChild(tr);
+                    // 行をテーブルに追加
+                    tbody.appendChild(tr);
 
-                // 合計行以外をグラフに追加
-                if (asset.asset_name !== '合計金額') {
-                    chartLabels.push(asset.asset_name);
-                    // パーセンテージ記号を除去して数値に変換
-                    const ratioValue = parseFloat(asset.ratio.replace('%', ''));
-                    chartData.push(ratioValue);
-                }
-            });
+                    // 合計行以外をグラフデータに追加
+                    if (asset.asset_name !== '合計金額') {
+                        chartLabels.push(asset.asset_name);
+                        // パーセンテージ記号を除去して数値に変換（例: "25%" → 25）
+                        const ratioValue = parseFloat(asset.ratio.replace('%', ''));
+                        chartData.push(ratioValue);
+                    }
+                });
 
-            // グラフの更新
-            updateChart(chartLabels, chartData, chartColors);
+                // グラフの更新を実行
+                updateChart(chartLabels, chartData, chartColors);
+            } catch (error) {
+                console.error('データ取得エラー:', error);
+            }
         }
 
+        /**
+         * Chart.jsを使用してグラフを更新する関数
+         * @param {Array} labels - グラフのラベル配列
+         * @param {Array} data - グラフのデータ配列
+         * @param {Array} colors - グラフの色配列
+         */
         function updateChart(labels, data, colors) {
             const ctx = document.getElementById('myChart').getContext('2d');
             
-            // 既存のグラフがあれば破棄
+            // 既存のグラフがあれば破棄してメモリリークを防ぐ
             if (myChart) {
                 myChart.destroy();
             }
 
             // データが空の場合のハンドリング
             if (labels.length === 0 || data.length === 0) {
-                // 空のデータ用のプレースホルダーグラフ
+                // プレースホルダー用のグラフを作成
                 myChart = new Chart(ctx, {
                     type: 'pie',
                     data: {
@@ -142,7 +166,7 @@
                         datasets: [{
                             label: '資産配分',
                             data: [100],
-                            backgroundColor: ['#e5e7eb'],
+                            backgroundColor: ['#e5e7eb'], // グレー色
                             borderWidth: 2,
                             borderColor: '#ffffff'
                         }]
@@ -152,10 +176,10 @@
                         maintainAspectRatio: false,
                         plugins: {
                             legend: {
-                                display: false
+                                display: false  // 凡例を非表示
                             },
                             tooltip: {
-                                enabled: false
+                                enabled: false  // ツールチップを無効化
                             }
                         }
                     }
@@ -163,7 +187,7 @@
                 return;
             }
 
-            // 新しいグラフを作成
+            // 実際のデータでグラフを作成
             myChart = new Chart(ctx, {
                 type: 'pie',
                 data: {
@@ -171,7 +195,7 @@
                     datasets: [{
                         label: '資産配分',
                         data: data,
-                        backgroundColor: colors.slice(0, labels.length),
+                        backgroundColor: colors.slice(0, labels.length), // 必要な分だけ色を使用
                         borderWidth: 2,
                         borderColor: '#ffffff'
                     }]
@@ -184,7 +208,7 @@
                             position: 'bottom',
                             labels: {
                                 padding: 20,
-                                usePointStyle: true,
+                                usePointStyle: true,  // 丸い点スタイル
                                 font: {
                                     size: 12
                                 }
@@ -192,6 +216,7 @@
                         },
                         tooltip: {
                             callbacks: {
+                                // ツールチップの表示内容をカスタマイズ
                                 label: function(context) {
                                     return context.label + ': ' + context.parsed + '%';
                                 }
@@ -202,34 +227,54 @@
             });
         }
 
-        // ページ読み込み時に呼び出す
+        // ページ読み込み完了時に初期データを取得
         window.onload = fetchFlights;
     </script>
 
     <script>
+        /**
+         * ファイルドラッグ&ドロップ処理の初期化
+         */
         const dropArea = document.getElementById("drop-area");
 
+        /**
+         * ファイルがドラッグされた時の処理
+         * ドロップエリアの見た目を変更して、ドロップ可能であることを示す
+         */
         dropArea.addEventListener("dragover", (e) => {
-            e.preventDefault();
+            e.preventDefault(); // デフォルトのドラッグ処理を無効化
             dropArea.classList.add('drop-area--active');
         });
 
+        /**
+         * ドラッグが離れた時の処理
+         * ドロップエリアの見た目を元に戻す
+         */
         dropArea.addEventListener("dragleave", () => {
             dropArea.classList.remove('drop-area--active');
         });
 
+        /**
+         * ファイルがドロップされた時の処理
+         * CSVファイルをサーバーにアップロードし、処理結果を表示
+         */
         dropArea.addEventListener("drop", (e) => {
-            e.preventDefault();
+            e.preventDefault(); // デフォルトのドロップ処理を無効化
             dropArea.classList.remove('drop-area--active');
 
+            // ドロップされたファイルを取得
             const files = e.dataTransfer.files;
+            
+            // FormDataオブジェクトを作成してファイルを追加
             const formData = new FormData();
             formData.append("file", files[0]);
 
+            // サーバーにファイルをアップロード
             fetch("/upload", {
                 method: "POST",
                 body: formData,
-            }).then(response => {
+            })
+            .then(response => {
                 if (!response.ok) {
                     throw new Error("アップロード失敗")
                 }
@@ -238,7 +283,7 @@
             .then(text => {
                 console.log("サーバーからの応答:", text);
                 alert("サーバー応答: " + text);
-                // アップロード後にテーブルとグラフを更新
+                // アップロード成功後、最新データでテーブルとグラフを更新
                 fetchFlights();
             })
             .catch(err => {
