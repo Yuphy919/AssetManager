@@ -4,4 +4,6 @@
 **/*.rlib
 **/*.dll
 **/*.exe
+/uploads
+**/*.csv
 %LOCALAPPDATA%/

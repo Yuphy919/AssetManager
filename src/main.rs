@@ -144,7 +144,8 @@ mod repository {
         let rows = conn.query(
             "SELECT asset_categories.division, asset_categories.name, target_percentage.ratio As target_ratio 
              FROM asset_categories 
-             LEFT JOIN target_percentage ON asset_categories.division = target_percentage.asset_division"
+             LEFT JOIN target_percentage 
+             ON asset_categories.division = target_percentage.asset_division"
         )?;
         Ok(rows)
     }
@@ -156,7 +157,8 @@ mod repository {
         let query = format!(
             "SELECT SUM(assets.amount) AS amount 
              FROM assets 
-             INNER JOIN asset_master ON assets.id = asset_master.id 
+             INNER JOIN asset_master 
+             ON assets.id = asset_master.id 
              AND asset_master.division = {}", 
             division
         );
